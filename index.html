@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LIVE SENSOR DATA</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=khand@500&f[]=sentient@400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Sentient", sans-serif;
+        text-align: center;
+        padding: 20px;
+        background: #ebdbd9;
+        color: #9a2819;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        min-height: 100vh;
+      }
+      h1 {
+        font-family: "Khand", sans-serif;
+        font-weight: 500;
+        font-size: 68px;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-family: "Khand", sans-serif;
+        font-weight: 500;
+        font-size: 40px;
+        color: #9a2819;
+      }
+      .warning-banner {
+        display: none;
+        background: red;
+        color: white;
+        font-weight: bold;
+        padding: 15px;
+        width: 100%;
+        text-align: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+      }
+      .counter {
+        margin: 10px 0 20px 0;
+        font-size: 18px;
+        font-weight: bold;
+        font-family: "Sentient", sans-serif;
+      }
+      .chart-container {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 70px;
+        width: 100%;
+        margin-top: 80px; /* Push charts down so banner doesn't overlap */
+      }
+      .chart-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        height: 50vh;
+        max-width: 90%;
+        background: #dbb2a9;
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+      .chart-wrapper h2 {
+        margin-top: 0;
+        margin-bottom: 15px;
+      }
+      canvas {
+        width: 100% !important;
+        height: calc(100% - 50px) !important;
+        max-width: 100%;
+        max-height: calc(100% - 50px);
+      }
+      @media (min-width: 1024px) {
+        .chart-container {
+          flex-direction: row;
+          gap: 70px;
+        }
+        .chart-wrapper {
+          max-width: 800px;
+          height: 60vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="warning-banner" id="warningBanner">⚠ Accident Detected!</div>
+    <h1>LIVE SENSOR DATA</h1>
+    <div class="counter">Accidents: <span id="accidentCount">0</span></div>
+
+    <div class="chart-container">
+      <div class="chart-wrapper">
+        <h2>Accelerometer Data</h2>
+        <canvas id="accelChart"></canvas>
+      </div>
+      <div class="chart-wrapper">
+        <h2>Gyroscope Data</h2>
+        <canvas id="gyroChart"></canvas>
+      </div>
+    </div>
+
+    <script>
+      let accidentCount = 0;
+
+      function triggerAccidentWarning() {
+        accidentCount++;
+        document.getElementById("accidentCount").innerText = accidentCount;
+
+        const banner = document.getElementById("warningBanner");
+        banner.style.display = "block";
+
+        setTimeout(() => {
+          banner.style.display = "none";
+        }, 5000);
+      }
+
+      // Example accident detection rule:
+      // If acceleration magnitude > 25 m/s²
+      function checkAccident(accelValues) {
+        const magnitude = Math.sqrt(
+          accelValues[0] ** 2 + accelValues[1] ** 2 + accelValues[2] ** 2
+        );
+        if (magnitude > 50) {
+          triggerAccidentWarning();
+        }
+      }
+
+      // --- ACCELEROMETER CHART
+      const ctxAccel = document.getElementById("accelChart").getContext("2d");
+      const accelChart = new Chart(ctxAccel, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            { label: "X", borderColor: "#ff6384", data: [], fill: false },
+            { label: "Y", borderColor: "#36a2eb", data: [], fill: false },
+            { label: "Z", borderColor: "#ffcd56", data: [], fill: false },
+          ],
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: "Time", color: "black" },
+              ticks: { color: "black" },
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Acceleration (m/s²)",
+                color: "black",
+              },
+              ticks: { color: "black" },
+            },
+          },
+          plugins: {
+            legend: {
+              labels: { color: "black" },
+            },
+          },
+        },
+      });
+
+      // --- GYROSCOPE CHART ---
+      const ctxGyro = document.getElementById("gyroChart").getContext("2d");
+      const gyroChart = new Chart(ctxGyro, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            { label: "X", borderColor: "#4bc0c0", data: [], fill: false },
+            { label: "Y", borderColor: "#9966ff", data: [], fill: false },
+            { label: "Z", borderColor: "#ff9f40", data: [], fill: false },
+          ],
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: "Time", color: "black" },
+              ticks: { color: "black" },
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Angular Velocity (rad/s)",
+                color: "black",
+              },
+              ticks: { color: "black" },
+            },
+          },
+          plugins: {
+            legend: {
+              labels: { color: "black" },
+            },
+          },
+        },
+      });
+
+      // --- WEBSOCKET CONNECTIONS ---
+      // Accelerometer WebSocket
+      const accelSocket = new WebSocket(
+        "ws://192.168.1.2:8080/sensor/connect?type=android.sensor.accelerometer"
+      );
+      accelSocket.onopen = () =>
+        console.log("Connected to Accelerometer Sensor");
+      accelSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const values = data.values;
+        const time = new Date().toLocaleTimeString();
+
+        // Update accelerometer chart
+        accelChart.data.labels.push(time);
+        accelChart.data.datasets[0].data.push(values[0]);
+        accelChart.data.datasets[1].data.push(values[1]);
+        accelChart.data.datasets[2].data.push(values[2]);
+
+        if (accelChart.data.labels.length > 20) {
+          accelChart.data.labels.shift();
+          accelChart.data.datasets.forEach((dataset) => dataset.data.shift());
+        }
+        accelChart.update();
+
+        // Accident detection
+        checkAccident(values);
+      };
+      accelSocket.onerror = (error) =>
+        console.error("Accelerometer WebSocket Error:", error);
+      accelSocket.onclose = () =>
+        console.log("Disconnected from Accelerometer");
+
+      // Gyroscope WebSocket
+      const gyroSocket = new WebSocket(
+        "ws://192.168.1.2:8080/sensor/connect?type=android.sensor.gyroscope"
+      );
+      gyroSocket.onopen = () => console.log("Connected to Gyroscope Sensor");
+      gyroSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const values = data.values;
+        const time = new Date().toLocaleTimeString();
+
+        // Update gyroscope chart
+        gyroChart.data.labels.push(time);
+        gyroChart.data.datasets[0].data.push(values[0]);
+        gyroChart.data.datasets[1].data.push(values[1]);
+        gyroChart.data.datasets[2].data.push(values[2]);
+
+        if (gyroChart.data.labels.length > 20) {
+          gyroChart.data.labels.shift();
+          gyroChart.data.datasets.forEach((dataset) => dataset.data.shift());
+        }
+        gyroChart.update();
+      };
+      gyroSocket.onerror = (error) =>
+        console.error("Gyroscope WebSocket Error:", error);
+      gyroSocket.onclose = () => console.log("Disconnected from Gyroscope");
+    </script>
+  </body>
+</html>

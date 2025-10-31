@@ -1,0 +1,39 @@
+{
+  "name": "smart-safe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node server.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production ts-node server.ts",
+    "lint": "eslint",
+    "init-admin": "node scripts/init-admin.js"
+  },
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "next": "16.0.1",
+    "face-api.js": "^0.22.2",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0",
+    "ws": "^8.16.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.1"
+  }
+}
