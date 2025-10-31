@@ -25,8 +25,11 @@ export function generateToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-export function verifyToken(token: string): AuthPayload | null {
+export function verifyToken(token: string | undefined): AuthPayload | null {
   try {
+    if (!token) {
+      return null;
+    }
     return jwt.verify(token, JWT_SECRET) as AuthPayload;
   } catch {
     return null;
