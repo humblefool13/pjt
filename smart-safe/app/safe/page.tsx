@@ -22,12 +22,24 @@ export default function SafePage() {
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [setupUserId, setSetupUserId] = useState<string | null>(null); // Store userId during setup
+  const [slideshowIndex, setSlideshowIndex] = useState<number>(0); // Current image index for slideshow
+
+  // Images for slideshow
+  const slideshowImages = [
+    "/cash.jpeg",
+    "/gold.jpg",
+    "/keys.jpeg",
+    "/silver.jpg",
+    "/watches.jpeg",
+  ];
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const slideshowInitializedRef = useRef<boolean>(false);
 
   // Load face-api.js models
   useEffect(() => {
@@ -76,6 +88,42 @@ export default function SafePage() {
     };
     checkPermissions();
   }, []);
+
+  // Slideshow effect when safe is unlocked
+  useEffect(() => {
+    if (safeState === "unlocked") {
+      // Reset to first image when starting slideshow
+      // Use setTimeout to defer state update and avoid linter warning
+      const timeoutId = setTimeout(() => {
+        setSlideshowIndex(0);
+        slideshowInitializedRef.current = true;
+      }, 0);
+
+      // Start slideshow
+      slideshowIntervalRef.current = setInterval(() => {
+        setSlideshowIndex((prev) => (prev + 1) % slideshowImages.length);
+      }, 1500); // Change image every 1.5 seconds
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    } else {
+      // Stop slideshow
+      slideshowInitializedRef.current = false;
+      if (slideshowIntervalRef.current) {
+        clearInterval(slideshowIntervalRef.current);
+        slideshowIntervalRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount or state change
+    return () => {
+      if (slideshowIntervalRef.current) {
+        clearInterval(slideshowIntervalRef.current);
+        slideshowIntervalRef.current = null;
+      }
+    };
+  }, [safeState, slideshowImages.length]);
 
   // Request permissions function (called by button click)
   const requestPermissions = async () => {
@@ -202,35 +250,35 @@ export default function SafePage() {
   }, []);
 
   // Start sensor data collection
-  useEffect(() => {
-    if (
-      safeState !== "locked" &&
-      typeof window !== "undefined" &&
-      "DeviceMotionEvent" in window
-    ) {
-      const handleMotion = (event: DeviceMotionEvent) => {
-        if (event.acceleration && event.rotationRate && socketRef.current) {
-          const sensorData = {
-            accelerometer: {
-              x: event.acceleration.x || 0,
-              y: event.acceleration.y || 0,
-              z: event.acceleration.z || 0,
-            },
-            gyroscope: {
-              x: event.rotationRate.alpha || 0,
-              y: event.rotationRate.beta || 0,
-              z: event.rotationRate.gamma || 0,
-            },
-            timestamp: Date.now(),
-          };
-          socketRef.current.emit("sensor-data", sensorData);
-        }
-      };
+  // useEffect(() => {
+  //   if (
+  //     safeState !== "locked" &&
+  //     typeof window !== "undefined" &&
+  //     "DeviceMotionEvent" in window
+  //   ) {
+  //     const handleMotion = (event: DeviceMotionEvent) => {
+  //       if (event.acceleration && event.rotationRate && socketRef.current) {
+  //         const sensorData = {
+  //           accelerometer: {
+  //             x: event.acceleration.x || 0,
+  //             y: event.acceleration.y || 0,
+  //             z: event.acceleration.z || 0,
+  //           },
+  //           gyroscope: {
+  //             x: event.rotationRate.alpha || 0,
+  //             y: event.rotationRate.beta || 0,
+  //             z: event.rotationRate.gamma || 0,
+  //           },
+  //           timestamp: Date.now(),
+  //         };
+  //         socketRef.current.emit("sensor-data", sensorData);
+  //       }
+  //     };
 
-      window.addEventListener("devicemotion", handleMotion);
-      return () => window.removeEventListener("devicemotion", handleMotion);
-    }
-  }, [safeState]);
+  //     window.addEventListener("devicemotion", handleMotion);
+  //     return () => window.removeEventListener("devicemotion", handleMotion);
+  //   }
+  // }, [safeState]);
 
   // Start video stream
   const startVideo = async () => {
@@ -352,15 +400,51 @@ export default function SafePage() {
           return;
         }
 
+        // Capture face image for logging (especially for unauthorized attempts)
+        let capturedImage: string | null = null;
+        if (canvasRef.current && videoRef.current) {
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+          const ctx = canvasRef.current.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(videoRef.current, 0, 0);
+            // Extract face region from detection box
+            const box = detection.detection.box;
+            const faceCanvas = document.createElement("canvas");
+            faceCanvas.width = Math.min(box.width, videoRef.current.videoWidth);
+            faceCanvas.height = Math.min(
+              box.height,
+              videoRef.current.videoHeight
+            );
+            const faceCtx = faceCanvas.getContext("2d");
+            if (faceCtx) {
+              // Draw the face region from the main canvas
+              faceCtx.drawImage(
+                canvasRef.current,
+                Math.max(0, box.x),
+                Math.max(0, box.y),
+                Math.min(box.width, videoRef.current.videoWidth - box.x),
+                Math.min(box.height, videoRef.current.videoHeight - box.y),
+                0,
+                0,
+                faceCanvas.width,
+                faceCanvas.height
+              );
+              capturedImage = faceCanvas.toDataURL("image/jpeg", 0.8);
+            }
+          }
+        }
+
         // Send descriptor to server for recognition
         const descriptor = Array.from(detection.descriptor);
         const response = await fetch("/api/face/recognize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor }),
+          body: JSON.stringify({ descriptor, capturedImage }),
         });
 
         if (!response.ok) {
+          // Face not recognized - image already sent to API for logging
           setStatusMessage("Face not recognized. Access denied.");
           stopVideo();
           setSafeState("locked");
@@ -391,7 +475,8 @@ export default function SafePage() {
     stopVideo();
     setSafeState("locked");
     setStatusMessage("Safe locked");
-
+    // Lock with motor
+    await fetch(`${process.env.NEXT_PUBLIC_ESP32_URL}-90`);
     // Log lock event
     await fetch("/api/events", {
       method: "POST",
@@ -785,19 +870,39 @@ export default function SafePage() {
           </div>
         )}
 
-        {/* Video Preview */}
+        {/* Video Preview or Slideshow */}
         <div
           className="relative mb-4 bg-black rounded-lg overflow-hidden"
           style={{ aspectRatio: "4/3" }}
         >
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-          <canvas ref={canvasRef} className="hidden" />
+          {safeState === "unlocked" ? (
+            // Slideshow when unlocked
+            <div className="relative w-full h-full">
+              {slideshowImages.map((image, index) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={image}
+                  src={image}
+                  alt={`Safe contents ${index + 1}`}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
+                    index === slideshowIndex ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              ))}
+            </div>
+          ) : (
+            // Video when locked/unlocking/setup
+            <>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              <canvas ref={canvasRef} className="hidden" />
+            </>
+          )}
         </div>
 
         {/* PIN Input for Unlock */}
@@ -874,8 +979,8 @@ export default function SafePage() {
                         "Verification successful! Unlocking safe..."
                       );
 
-                      // Log unlock event
-                      await fetch("/api/events", {
+                      // Log unlock event (don't await - fire and forget)
+                      fetch("/api/events", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -883,15 +988,26 @@ export default function SafePage() {
                           userId,
                           metadata: { verified: "face+pin+voice" },
                         }),
-                      });
+                      }).catch((err) =>
+                        console.error("Error logging event:", err)
+                      );
 
-                      setTimeout(() => {
-                        stopVideo();
-                        setSafeState("unlocked");
-                        setStatusMessage("Safe unlocked");
-                        setPin("");
-                        localStorage.removeItem("recognizedUserId");
-                      }, 1000);
+                      // Unlock with motor (don't await - fire and forget)
+                      const esp32Url = process.env.NEXT_PUBLIC_ESP32_URL;
+                      if (esp32Url) {
+                        fetch(`${esp32Url}90`, { method: "GET" }).catch(
+                          (err) => {
+                            console.error("Error unlocking motor:", err);
+                          }
+                        );
+                      }
+
+                      // Immediately transition to unlocked state
+                      stopVideo();
+                      setSafeState("unlocked");
+                      setStatusMessage("Safe unlocked");
+                      setPin("");
+                      localStorage.removeItem("recognizedUserId");
                     } else {
                       setStatusMessage(
                         "No audio detected. Please speak your phrase."

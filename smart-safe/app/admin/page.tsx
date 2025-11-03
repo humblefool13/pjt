@@ -32,6 +32,7 @@ interface Event {
   userName?: string;
   timestamp: string;
   metadata?: Record<string, any>;
+  image?: string; // Base64 encoded image for unauthorized attempts
 }
 
 interface User {
@@ -298,8 +299,7 @@ export default function AdminDashboard() {
 
       // Also connect to native WebSocket (like index.html) if available
       // Update the IP address to match your sensor server
-      const sensorServerUrl =
-        process.env.NEXT_PUBLIC_SENSOR_SERVER || "ws://192.168.1.2:8080";
+      const sensorServerUrl = process.env.NEXT_PUBLIC_SENSOR_SERVER;
 
       // Accelerometer WebSocket
       const accelSocket = new WebSocket(
@@ -570,6 +570,7 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3 text-left">User</th>
                   <th className="px-4 py-3 text-left">Timestamp</th>
                   <th className="px-4 py-3 text-left">Details</th>
+                  <th className="px-4 py-3 text-left">Image</th>
                 </tr>
               </thead>
               <tbody>
@@ -604,6 +605,38 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-400">
                       {event.metadata ? JSON.stringify(event.metadata) : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {event.image ? (
+                        <div className="relative group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={event.image}
+                            alt="Intruder face"
+                            className="w-16 h-16 object-cover rounded cursor-pointer hover:scale-150 transition-transform"
+                            onClick={() => {
+                              // Show full-size image in modal
+                              const modal = document.createElement("div");
+                              modal.className =
+                                "fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50";
+                              modal.onclick = () => modal.remove();
+                              const img = document.createElement("img");
+                              img.src = event.image!;
+                              img.className =
+                                "max-w-4xl max-h-[90vh] rounded-lg";
+                              img.onclick = (clickEvent) =>
+                                clickEvent.stopPropagation();
+                              modal.appendChild(img);
+                              document.body.appendChild(modal);
+                            }}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs text-center py-1 rounded-b opacity-0 group-hover:opacity-100 transition-opacity">
+                            Click to enlarge
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 text-xs">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

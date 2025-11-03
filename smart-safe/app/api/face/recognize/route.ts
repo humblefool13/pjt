@@ -4,7 +4,7 @@ import { storage } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   try {
-    const { descriptor } = await request.json();
+    const { descriptor, capturedImage } = await request.json();
 
     if (!descriptor) {
       return NextResponse.json(
@@ -16,10 +16,14 @@ export async function POST(request: NextRequest) {
     const match = await recognizeFaceFromDescriptor(descriptor);
 
     if (!match) {
-      // Log unauthorized attempt
+      // Log unauthorized attempt with captured face image
       await storage.createEvent({
         type: "unauthorized_face",
-        metadata: { reason: "No matching face found" },
+        metadata: {
+          reason: "No matching face found",
+          hasImage: !!capturedImage,
+        },
+        image: capturedImage || undefined, // Store the captured face image
       });
 
       return NextResponse.json(

@@ -33,6 +33,7 @@ interface Event {
   userName?: string;
   timestamp: string;
   metadata?: Record<string, any>;
+  image?: string; // Base64 encoded image for unauthorized attempts
 }
 
 interface FaceData {
